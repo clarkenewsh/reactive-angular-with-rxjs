@@ -166,7 +166,7 @@ Reactive Angular Course Notes:
                 advancedCourses$: Observable<Course[]>;
                 
 
-                constructor(private dialog: MatDialog, coursesService: CoursesService) {
+                constructor(private dialog: MatDialog, private coursesService: CoursesService) {
 
                 }
 
@@ -285,20 +285,490 @@ Reactive Angular Course Notes:
                         return this.http.get<Course[]>("/api/courses")
                         .pipe(
                             map(res => res["payload"]),
-                            shareReplay() << shareReplay() ensures that we dont have two separate http calls to the backend
+                            shareReplay() << shareReplay() ensures that we don't have two separate http calls to the backend
                         );
                     }
                 }
 
-            - Angular view Layer Patterns - Smart vs Presentational Components: Presentational components are view templates that its only responsibility is to display to the UI the data we input to the view. It will not contain any other logic. To do this we would want to create a courseCardList component with an @Input(): Course[] = [] in the ts file. The courseCardList view template where we ngFor let course of courses through the courses array. We would then instantiate the courseCardList component within the home.component as pass in the [courses]=beginnerCourses$ | async to subscribe to the observables that way. By doing this we are implementing a presentational component using courseCardList were its only responsibility is to display the courses data that comes from the @Input and the subscribing using the async pipe and logic to call the coursesService will be implemented in the home.component.ts. The home.component.ts will now be classed as the smart component as it contains the logic for injecting the coursesService, the logic for calling the loadAllCourses() method, map and filter the observable response and also contains the Observable member variables. The home.component.html view will then just instantiate the courseCardList components as subscribe to the courses observable  by passing in <courses-card-list[courses]=beginnerCourses$ | async></<courses-card-list> & <courses-card-list[courses]=advancedCourses$ | async></<courses-card-list>  
+            - Angular view Layer Patterns - Smart vs Presentational Components: Presentational components are view templates were its only responsibility is to display to the UI the data we input to the view. It will not contain any other logic. To do this we would want to create a coursesCardList component with an @Input(): Course[] = [] in the ts file. The courseCardList view template where we ngFor let course of courses through the courses array. We would then instantiate the courseCardList component within the home.component as pass in the [courses]=beginnerCourses$ | async to subscribe to the observables that way. By doing this we are implementing a presentational component using courseCardList were its only responsibility is to display the courses data that comes from the @Input and the subscribing using the async pipe and logic to call the coursesService will be implemented in the home.component.ts. The home.component.ts will now be classed as the smart component as it contains the logic for injecting the coursesService, the logic for calling the loadAllCourses() method, map and filter the observable response and also contains the Observable member variables. The home.component.html view will then just instantiate the courseCardList components as subscribe to the courses observable  by passing in <courses-card-list[courses]=beginnerCourses$ | async></<courses-card-list> & <courses-card-list[courses]=advancedCourses$ | async></<courses-card-list>. The editCourse(course: Course) method is removed from the homeComponent.ts and added to the CoursesCardList.ts Component along with the Angular Material Dialog Service in the constructor. Now the sole purpose of the CoursesCardList Component is to display courses and edit courses (This component is now fully re-usable and can be used in other areas of the app). The courses @Input will contain all of the courses which we can then pass in either Beginner or Advanced courses when instantiating the component in the parent Home Component with the async pipe, [courses]=beginnerCourses$ | async></<courses-card-list> & <courses-card-list[courses]=advancedCourses$ | async></<courses-card-list>. The home Component is now the smart component with its main responsibly is to access the service layer, extract dat from that service and pass it to the coursesCardList component. The coursesCardList Component now is just for presentation, it doesn't know how the data comes from the service it only gets it courses data through the @Input courses: Course[]; 
+
+                - Example of Smart vs Presentational components (creating a new component: CoursesCardListComponent)
+
+                ** coursesCardListComponent.ts
+
+                export class CoursesCardListComponent implements OnInit {
+                    @Input()
+                    courses: Course[];  
+
+                    constructor(private dialog: MatDialog) {
+
+                    }
+
+                    ngOnInit() {
+
+                    }
+
+                      editCourse(course: Course) {
+
+                        const dialogConfig = new MatDialogConfig();
+
+                        dialogConfig.disableClose = true;
+                        dialogConfig.autoFocus = true;
+                        dialogConfig.width = "400px";
+
+                        dialogConfig.data = course;
+
+                        const dialogRef = this.dialog.open(CourseDialogComponent, dialogConfig);
+
+                    }
+                }
+
+
+                **coursesCardListComponent.html
+
+                <mat-card *ngFor="let course of courses" class="course-card mat-elevation-z10">
+
+                    <mat-card-header>
+
+                        <mat-card-title>{{course.description}}</mat-card-title>
+
+                    </mat-card-header>
+
+                    <img mat-card-image [src]="course.iconUrl">
+
+                    <mat-card-content>
+                        <p>{{course.longDescription}}</p>
+                    </mat-card-content>
+
+                    <mat-card-actions class="course-actions">
+
+                    <button mat-button class="mat-raised-button mat-primary" [routerLink]="['/courses', course.id]">
+                        VIEW COURSE
+                    </button>
+
+                    <button mat-button class="mat-raised-button mat-accent"
+                            (click)="editCourse(course)">
+                        EDIT
+                    </button>
+
+                    </mat-card-actions>
+
+                </mat-card>
+
+
+
+                ** Home.Component.html
+                
+                <div class="courses-panel">
+
+                    <h3>All Courses</h3>
+
+                    <mat-tab-group>
+
+                        <mat-tab label="Beginners">
+
+                            <courses-card-list [courses]="beginnerCourses$ | async"></courses-card-list>
+
+                        </mat-tab>
+
+                        <mat-tab label="Advanced">
+
+                            <courses-card-list [courses]="advancedCourses$ | async"></courses-card-list>
+                      
+                        </mat-tab>
+
+                    </mat-tab-group>
+
+                </div>
+
+
+                ** Home.Component.ts
+
+                export class HomeComponent implements OnInit {
+
+                beginnerCourses$: Observable<Course[]>;
+
+                advancedCourses$: Observable<Course[]>;
+                
+
+                constructor(private coursesService: CoursesService) {
+
+                }
+
+                    ngOnInit() {
+
+                        const courses$ = this.coursesService.loadAllCourses()
+                        .pipe(
+                            map(courses => courses.sort(sortCoursesBySeqNo))
+                        );
+
+                        this.beginnerCourses$ = courses$
+                        .pipe(
+                            map(courses => courses.filter(courses => courses.category === "BEGINNER"))
+                        );
+
+                        this.advancedCourses$ = courses$
+                        .pipe(
+                            map(courses => courses.filter(courses => courses.category === "ADVANCED"))
+                        );
+
+                    }
+
+                }
+
+            - Data Modification Example in Reactive Style: We can refactor our code further to implement a Reactive way to edit course details. We can do this by creating a saveCourse() method int he courses.service.ts file which takes the courseId & changes made to the course as parameters, of return type Observable & we then call this.http.put(`/api/courses/${courseId}`, changes) and pass the changes to the courseId that was updated. In the courseDialog.ts component we then implemented the save method that is uses the service to save the updated courses details. We get the changes using the form group using form value, assign the changed form values to 'changes' ( const changes = this.form.value;) & call the courses service saveCourse Method with the course if and changes passed in ( this.coursesService.saveCourse(this.course.id, changes)), we must then subscribe to the observable and close the course dialog component modal. We then want to update the courses-card-list.ts component so that when the course dialog is closed it emits an event that will re-trigger the method to load all of the courses. We have to do this because the courses-card-list.ts component is a presentation component so we need a way to re-trigger the loading of courses when the editCourse method has been called. We can do this by using the afterClosed() observable on the dialogRef modal, filter out the cases that correspond to the only successful saves were a val was emitted. We then trigger the event & emit it using the tap() operator which then calls the coursesChanged event, which we then pass this event as a custom event as so, (@Output private coursesChanged = new EventEmitter();) to the home.component.html (coursesChanged="reloadCourses()")  which then calls a reloadCourses() method which we have created in the home.component.ts file, as shown below. The ngOnInit will be responsible for calling the reloadCourses method. Implementing it this was in of a Reactive style
+
+
+
+                - Example of Data Modification Example in Reactive Style (as explained above):
+                
+                ** courses.service.ts
+                export class CoursesService {
+                    constructor(private http:HttpClient) {
+
+                    }
+
+                    loadAllCourses(): Observable<Course[]> {
+                        return this.http.get<Course[]>("/api/courses")
+                        .pipe(
+                            map(res => res["payload"]),
+                            shareReplay()
+                        );
+                    }
+
+                    saveCourse(course: string, changes: Partial<Course>): Observable<any> {
+                        return this.http.put(`/api/courses/${courseId}`, changes)
+                        .pipe(
+                            shareReplay()
+                        );
+                    }
+                }
+
+
+                ** coursesCardListComponent.ts
+
+                export class CoursesCardListComponent implements OnInit {
+                    @Input()
+                    courses: Course[];
+
+                    @Output private coursesChanged = new EventEmitter();  
+
+                    constructor(private dialog: MatDialog) {
+
+                    }
+
+                    ngOnInit() {
+
+                    }
+
+                      editCourse(course: Course) {
+
+                        const dialogConfig = new MatDialogConfig();
+
+                        dialogConfig.disableClose = true;
+                        dialogConfig.autoFocus = true;
+                        dialogConfig.width = "400px";
+
+                        dialogConfig.data = course;
+
+                        const dialogRef = this.dialog.open(CourseDialogComponent, dialogConfig);
+
+                        dialogRef.afterClosed()
+                        .pipe(
+                            filter(val => !!val), << check values that were changed
+                            tap() => this.corsesChanged.emit() << emit them values using tap() side effect
+                        )
+                        .subscribe();
+
+                    }
+                }
+
+
+                ** Home.Component.html
+                
+                <div class="courses-panel">
+
+                    <h3>All Courses</h3>
+
+                    <mat-tab-group>
+
+                        <mat-tab label="Beginners">
+
+                            <courses-card-list [courses]="beginnerCourses$ | async">
+                                coursesChanged="reloadCourses()" << when a course has been changed a custom event is emitted to call the reloadCourses Method
+                            </courses-card-list>
+
+                        </mat-tab>
+
+                        <mat-tab label="Advanced">
+
+                            <courses-card-list [courses]="advancedCourses$ | async">
+                                coursesChanged="reloadCourses()" << when a course has been changed a custom event is emitted to call the reloadCourses Method
+                            </courses-card-list>
+                      
+                        </mat-tab>
+
+                    </mat-tab-group>
+
+                </div>
+
+
+                ** Home.Component.ts
+
+                export class HomeComponent implements OnInit {
+
+                    beginnerCourses$: Observable<Course[]>;
+
+                    advancedCourses$: Observable<Course[]>;
+                    
+
+                    constructor(private coursesService: CoursesService) {
+
+                    }
+
+                    ngOnInit() {
+
+                        this.reloadCourses(); << call the reloadCourses method when a courses details have been edited. 
+
+                    }
+
+                    reloadCourses() {
+                        const courses$ = this.coursesService.loadAllCourses()
+                        .pipe(
+                            map(courses => courses.sort(sortCoursesBySeqNo))
+                        );
+
+                        this.beginnerCourses$ = courses$
+                        .pipe(
+                            map(courses => courses.filter(courses => courses.category === "BEGINNER"))
+                        );
+
+                        this.advancedCourses$ = courses$
+                        .pipe(
+                            map(courses => courses.filter(courses => courses.category === "ADVANCED"))
+                        );
+                    }
+
+                }
+
+    Section 3 - Reactive Component Interaction:
+
+        - Reactive Component Interaction: Above we are passing course data through @Inputs and emitting Events through @Outputs, but what if we wanted other components in the application that are not of parent/child relation to share data and interact to that data change. For instance what if we want a loading indicator throughout the application with other components that need it. We can do this by implementing it in a reactive way by designing it in a decoupled way were all the components can interact with a loading component. For example the courses-card-list, home component as each of the components have methods were we would want to use the loading component to show the to the user. This can be achieved using a decoupled component using a 'shared service', using an Injectable Service which is placed in the 'providers' of the app.component.ts which can then be injected in to any components constructor that would like to use the loading service. We instantiate the <loading></loading> component in the app.component.html ready to be used when ever it is called. We must first create a loading$ Observable in the loading.service.ts file (i.e - loading$: Observable<boolean>;) and subscribe to it using the *ngIf="loadingService.loading$ | async"> async pipe in the loading.component.html. If the loading$ Observable is true it will then show the loading spinner and if false it will not show. To implement this we can use the Private BehaviorSubject (private loadingSubject = new BehaviorSubject(false);) & (loading$: Observable<boolean> = this.loadingSubject.asObservable();) which will have a starting value of 'false' and use the loadingOn() to call next() on the BehaviorSubject to pass it a new value to turn the loading component on. We can then call the loadingOff() method after we have loaded and sorted the home screen courses using the finalize operator (i.e - finalize(() => this.loadingService.loadingOff())) which basically turn of the loading spinner when the courses on the home screen have successfully loaded. We can use the showLoadedUntilComplete method in the courses service to turn of the loader but the below example uses the rxjs finalize operator to do this. Additionally we can use this Reactive Loading Indicator in other parts of the app that are not direct child component of the root app.component.html such as the courseDialog.component which is not a direct child decent of the app route component, so it does not get access to the loadingService. We can do this by providing the loadingService in the courseDialog component using (providers:[LoadingService]) and then instantiate the <loading></loading> component in the courseDialog.component so it can be used there too. 
+        
+        - See full implementation example below for Reactive Component Interaction loadingService;
+
+        ** loading.service.ts
+        @Injectable()
+        export class LoadingService {
+
+            private loadingSubject = new BehaviorSubject(false);
+            
+            loading$: Observable<boolean> = this.loadingSubject.asObservable();
+
+            showLoaderUntilCompleted<T>(obs$: Observable<T>): Observable<T> {
+                return undefined;
+            }
+
+            loadingOn() {
+            this.loadingSubject.next(true);
+            }
+
+            loadingOff() {
+                this.loadingSubject.next(false);
+            }
+        }
+
+        ** app.component.ts
+        import {Component, OnInit} from '@angular/core';
+        import { LoadingService } from './loading/loading.service';
+
+        @Component({
+        selector: 'app-root',
+        templateUrl: './app.component.html',
+        styleUrls: ['./app.component.css'],
+            providers: [
+            LoadingService << LoadingService placed in providers of app.component 
+            ]
+        })
+
+        export class AppComponent implements  OnInit {
+
+            constructor() {
+
+            }
+
+            ngOnInit() {
+
+
+            }
+
+            logout() {
+
+            }
+
+        }
+
+        ** app.component.html
+        <mat-sidenav-container fullscreen>
+
+            <mat-sidenav #start (click)="start.close()">
+                <mat-nav-list>
+
+                <a mat-list-item routerLink="/">
+                    <mat-icon>library_books</mat-icon>
+                    <span>Courses</span>
+                </a>
+
+                <a mat-list-item routerLink="/search-lessons">
+                    <mat-icon>search</mat-icon>
+                    <span>Search Lessons</span>
+                </a>
+
+                <a mat-list-item routerLink="about">
+                    <mat-icon>question_answer</mat-icon>
+                    <span>About</span>
+                </a>
+                <a mat-list-item>
+                    <mat-icon>person_add</mat-icon>
+                    <span>Register</span>
+                </a>
+
+                <a mat-list-item routerLink="login">
+                    <mat-icon>account_circle</mat-icon>
+                    <span>Login</span>
+                </a>
+
+                <a mat-list-item (click)="logout()">
+                    <mat-icon>exit_to_app</mat-icon>
+                    <span>Logout</span>
+                </a>
+
+                </mat-nav-list>
+
+            </mat-sidenav>
+
+            <mat-toolbar color="primary">
+
+                <div class="toolbar-tools">
+
+                <button mat-icon-button (click)="start.open('mouse')">
+                    <mat-icon>menu</mat-icon>
+                </button>
+
+                <div class="filler"></div>
+
+                </div>
+
+
+            </mat-toolbar>
+
+            <loading></loading> << loading component declared ready to be used when LoadingService calls for it
+
+            <router-outlet></router-outlet>
+
+            </mat-sidenav-container>
+
+
+        ** home.component.ts
+        export class HomeComponent implements OnInit {
+
+            beginnerCourses$: Observable<Course[]>;
+
+            advancedCourses$: Observable<Course[]>;
+            loadingService: any;
+            
+
+            constructor(private dialog: MatDialog, private coursesService: CoursesService, private loadingService:LoadingService) {
+
+            }
+
+            ngOnInit() {
+
+                this.reloadCourses(); << calls the reloadCourses method when a courses details have been edited. 
+
+            }
+
+            reloadCourses() {
+
+                this.loadingService.loadingOn();
+
+                const courses$ = this.coursesService.loadAllCourses()
+                .pipe(
+                    map(courses => courses.sort(sortCoursesBySeqNo)),
+                    finalize(() => this.loadingService.loadingOff()) << turn of the loading spinner component when the courses have finished loading
+                );
+
+                this.beginnerCourses$ = courses$
+                .pipe(
+                    map(courses => courses.filter(courses => courses.category === "BEGINNER"))
+                );
+
+                this.advancedCourses$ = courses$
+                .pipe(
+                    map(courses => courses.filter(courses => courses.category === "ADVANCED"))
+                );
+            }
+        }
+
+        
+        ** Home.Component.html
+        <div class="courses-panel">
+
+            <h3>All Courses</h3>
+
+            <mat-tab-group>
+
+                <mat-tab label="Beginners">
+
+                    <courses-card-list [courses]="beginnerCourses$ | async">
+                        coursesChanged="reloadCourses()" << when a course has been changed a custom event is emitted to call the reloadCourses Method
+                    </courses-card-list>
+
+                </mat-tab>
+
+                <mat-tab label="Advanced">
+
+                    <courses-card-list [courses]="advancedCourses$ | async">
+                        coursesChanged="reloadCourses()" << when a course has been changed a custom event is emitted to call the reloadCourses Method
+                    </courses-card-list>
+                
+                </mat-tab>
+
+            </mat-tab-group>
+
+        </div>
+
+
+        **loading.component.ts
+        export class LoadingComponent implements OnInit {
+
+
+            constructor(public loadingService:LoadingService) { << public loadingService ready to be used in the template
+
+            }
+
+            ngOnInit() {
+
+            }
+        }
+
+        
+        **loading.component.html
+        <div class="spinner-container" *ngIf="loadingService.loading$ | async"> << subscribe to observable using async pipe
+            <mat-spinner></mat-spinner>
+        </div>
+
+
+    - Reactive Component Interaction Continued: Error handling using a shared & decoupled Message Service & component which can be used like the loadingService to show an error message panel at the top of the UI to the user if there is some issue when loading the courses or when editing course details incorrectly. The follow describes how this can be implemented using a shared, decoupled service. First we instantiate the message.component in the app.component.html file (<messages></messages>) ready to be used to display messages. We then set (showMessages = false;) in the messages.component.ts file and create a template view to show the error message (<div class="messages-container" *ngIf="showMessages"> & <div class="message" *ngFor="let error of errors"> {{error}} </div>). We then create a messages.service.ts file and provide the app.component providers property the Message Service (providers: [MessagesService]) and also the the home.component.ts constructor method (private messagesService: MessagesService). In the home.component.ts we then create the error handling logic for the home.component using the catchError rxjs operator (i.e - catchError(err => {const message = "Could not load courses"; this.messagesService.showErrors(message); console.log(message, err);return throwError(err);})) which handles the error by catching the error, saving a custom error massage in the message variable, sending the custom message to the messagesService showErrors() method, console logging the custom message and the technical err message returned by the browser and ending the observable by returning the the throwError(err).
+
+    
 
 
 
 
 
 
-
-
+        
 
 
 
@@ -309,7 +779,7 @@ Reactive Angular Course Notes:
 
 
 
-
+    
 
 
 
