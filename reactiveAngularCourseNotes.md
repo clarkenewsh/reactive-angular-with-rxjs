@@ -759,9 +759,214 @@ Reactive Angular Course Notes:
         </div>
 
 
-    - Reactive Component Interaction Continued: Error handling using a shared & decoupled Message Service & component which can be used like the loadingService to show an error message panel at the top of the UI to the user if there is some issue when loading the courses or when editing course details incorrectly. The follow describes how this can be implemented using a shared, decoupled service. First we instantiate the message.component in the app.component.html file (<messages></messages>) ready to be used to display messages. We then set (showMessages = false;) in the messages.component.ts file and create a template view to show the error message (<div class="messages-container" *ngIf="showMessages"> & <div class="message" *ngFor="let error of errors"> {{error}} </div>). We then create a messages.service.ts file and provide the app.component providers property the Message Service (providers: [MessagesService]) and also the the home.component.ts constructor method (private messagesService: MessagesService). In the home.component.ts we then create the error handling logic for the home.component using the catchError rxjs operator (i.e - catchError(err => {const message = "Could not load courses"; this.messagesService.showErrors(message); console.log(message, err);return throwError(err);})) which handles the error by catching the error, saving a custom error massage in the message variable, sending the custom message to the messagesService showErrors() method, console logging the custom message and the technical err message returned by the browser and ending the observable by returning the the throwError(err).
+    - Reactive Component Interaction Continued: Error handling using a shared & decoupled Message Service & component which can be used like the loadingService to show an error message panel at the top of the UI to the user if there is some issue when loading the courses or when editing course details incorrectly. The follow describes how this can be implemented using a shared, decoupled service. First we instantiate the message.component in the app.component.html file (<messages></messages>) ready to be used to display messages. We then set (showMessages = false;) memeber variable in the messages.component.ts file and create a template view to show the error message (<div class="messages-container" *ngIf="showMessages"> & <div class="message" *ngFor="let error of errors"> {{error}} </div>). We then create a messages.service.ts file and provide the app.component providers property the Message Service (providers: [MessagesService]) and also in the home.component.ts constructor method (private messagesService: MessagesService). In the home.component.ts we then create the error handling logic for the home.component using the catchError rxjs operator (i.e - catchError(err => {const message = "Could not load courses"; this.messagesService.showErrors(message); console.log(message, err);return throwError(err);})) which handles the error by catching the error, saving a custom error massage in the message variable, sending the custom message to the messagesService showErrors() method, console logging the custom message and the technical err message returned by the server backend and ending the observable by returning the the throwError(err). In the message service we declare a private BehaviorSubject that will emit error message values. We assign that subject to an errors$ observable that emits the same value created in the private BeahviourSubject, call next() on the subject in the showErrors() method passing it the error emitted. We then subscribe to the errors observable in the messages.component.html file using the async pipe. In the view we say that if  *ngIf="showMessages" is true then show the error message in the template. To set the "showMessages" variable to true we do this in the messages.component.ts, first we create an errors$ Observable and subscribe to it in the template using <ng-container  *ngIf="(errors$ | async) as errors"> instead of the messesagesService observable. We then use the messesageService in the ngOnInit method in the messages.component.ts, like so - ngOnInit() { this.errors$ = this.messagesService.errors$.pipe(tap(() => this.showMessages = true));. We assign the errors$ observable to the messagesService and use the pipe & then tap rxjs operator to set the showMessages member variable to 'true'. In the messages.service.ts file we then filter out the empty errors array that we start with. To do this we use the pipe & filter operator and check the messages array exists and that the messages service array length is greater than 0, as so (errors$: Observable<string[]> = subject.asObservable().pipe(filter(messages => messages && messages.length > 0););}.
 
-    
+        - See full implementation of Reactive Decoupled Messages Service below:
+
+        ** app.component.ts
+        @Component({
+        selector: 'app-root',
+        templateUrl: './app.component.html',
+        styleUrls: ['./app.component.css'],
+            providers: [
+            LoadingService,
+            MessagesService << messages service injected in to the app component
+            ]
+        })
+
+        export class AppComponent implements  OnInit {
+
+            constructor() {
+
+            }
+
+            ngOnInit() {
+            }
+
+            logout() {
+
+                }
+
+        }
+
+        ** app.component.html
+        <mat-sidenav-container fullscreen>
+
+            <mat-sidenav #start (click)="start.close()">
+                <mat-nav-list>
+
+                <a mat-list-item routerLink="/">
+                    <mat-icon>library_books</mat-icon>
+                    <span>Courses</span>
+                </a>
+
+                <a mat-list-item routerLink="/search-lessons">
+                    <mat-icon>search</mat-icon>
+                    <span>Search Lessons</span>
+                </a>
+
+                <a mat-list-item routerLink="about">
+                    <mat-icon>question_answer</mat-icon>
+                    <span>About</span>
+                </a>
+                <a mat-list-item>
+                    <mat-icon>person_add</mat-icon>
+                    <span>Register</span>
+                </a>
+
+                <a mat-list-item routerLink="login">
+                    <mat-icon>account_circle</mat-icon>
+                    <span>Login</span>
+                </a>
+
+                <a mat-list-item (click)="logout()">
+                    <mat-icon>exit_to_app</mat-icon>
+                    <span>Logout</span>
+                </a>
+
+                </mat-nav-list>
+
+            </mat-sidenav>
+
+            <mat-toolbar color="primary">
+
+                <div class="toolbar-tools">
+
+                <button mat-icon-button (click)="start.open('mouse')">
+                    <mat-icon>menu</mat-icon>
+                </button>
+
+                <div class="filler"></div>
+
+                </div>
+
+
+            </mat-toolbar>
+
+            <messages></messages> << Messages component injected into the app component ready to be used to show error messages
+
+            <loading></loading>
+
+            <router-outlet></router-outlet>
+
+            </mat-sidenav-container>
+
+
+
+        **home.component.ts
+        export class HomeComponent implements OnInit {
+
+            beginnerCourses$: Observable<Course[]>;
+
+            advancedCourses$: Observable<Course[]>;
+
+            
+
+            constructor(
+                private dialog: MatDialog, 
+                private coursesService: CoursesService, 
+                private loadingService:LoadingService,
+                private messagesService: MessagesService) {
+
+            }
+
+            ngOnInit() {
+
+                this.reloadCourses();
+
+            }
+
+            reloadCourses() {
+
+                this.loadingService.loadingOn();
+
+                const courses$ = this.coursesService.loadAllCourses()
+                .pipe(
+                    map(courses => courses.sort(sortCoursesBySeqNo)),
+                    finalize(() => this.loadingService.loadingOff()),
+                    catchError(err => {
+                    const message = "Could not load courses";
+                    this.messagesService.showErrors(message);
+                    console.log(message, err);
+                    return throwError(err);
+                    }),
+                    
+                );
+
+                this.beginnerCourses$ = courses$
+                .pipe(
+                    map(courses => courses.filter(courses => courses.category === "BEGINNER"))
+                );
+
+                this.advancedCourses$ = courses$
+                .pipe(
+                    map(courses => courses.filter(courses => courses.category === "ADVANCED"))
+                );
+        }
+
+
+        **messages.service.ts
+        export class MessagesService {
+
+            private subject = new BehaviorSubject<string[]>([]);
+            
+            errors$: Observable<string[]> = this.subject.asObservable()
+            .pipe(
+                filter(messages => messages && messages.length > 0);
+            );
+
+            showErrors(...errors: string[]) {
+                this.subject.next(errors);
+            }
+        }
+
+        **message.component.ts
+        export class MessagesComponent implements OnInit {
+
+            showMessages = false;
+
+            errors$: Observable<string[]>
+
+
+            constructor(public messagesService: MessagesService) {
+                console.log('created messages component');
+            }
+
+            ngOnInit() {
+                this.errors$ = this.messagesService.errors$.
+                pipe(
+                    tap(() => this.showMessages = true)
+                );
+
+            }
+
+
+            onClose() {
+                this.showMessages = false;
+            }
+
+        }
+
+        **message.component.html
+        <ng-container  *ngIf="(errors$ | async) as errors">
+            <div class="messages-container" *ngIf="showMessages">
+                <div class="message" *ngFor="let error of errors">
+                    {{error}}
+                </div>
+                <mat-icon class="close" click="onClose()">Close</mat-icon>
+            </div>
+        </ng-container>
+
+
+
+
+        
+
+
+
+
+
+
 
 
 
