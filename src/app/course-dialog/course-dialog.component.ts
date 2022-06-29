@@ -1,3 +1,4 @@
+import { MessagesService } from './../messages/messages.service';
 import { LoadingService } from './../loading/loading.service';
 import { CoursesService } from './../services/courses.service';
 import {AfterViewInit, Component, ElementRef, Inject, OnInit, ViewChild, ViewEncapsulation} from '@angular/core';
@@ -13,7 +14,8 @@ import {throwError} from 'rxjs';
     templateUrl: './course-dialog.component.html',
     styleUrls: ['./course-dialog.component.css'],
     providers: [
-        LoadingService
+        LoadingService,
+        MessagesService
     ]
 })
 export class CourseDialogComponent implements AfterViewInit {
@@ -27,7 +29,8 @@ export class CourseDialogComponent implements AfterViewInit {
         private dialogRef: MatDialogRef<CourseDialogComponent>,
         @Inject(MAT_DIALOG_DATA) course:Course,
         private coursesService: CoursesService,
-        loadingService:LoadingService) {
+        private loadingService:LoadingService,
+        private MessagesService:MessagesService) {
 
         this.course = course;
 
@@ -45,10 +48,17 @@ export class CourseDialogComponent implements AfterViewInit {
     }
 
     save() {
-
       const changes = this.form.value;
       // Apply the changes made to the course through the courseId, changes
-      this.coursesService.saveCourse(this.course.id, changes)
+      const saveCourse$ = this.coursesService.saveCourse(this.course.id, changes)
+      .pipe(
+        catchError(err => {
+            const message = "Could not save course";
+            console.log(message, err);
+            this.MessagesService.showErrors(message);
+            return throwError(err);
+        })
+      )
         // close the course dialog component modal when the course is saved (course dialog is injected in through the constructor so we have access to it). We pass the val into the subscribe to differentiate it from the below close method.
       .subscribe(
         (val) => {

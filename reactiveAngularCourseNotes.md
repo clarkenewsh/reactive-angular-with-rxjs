@@ -763,6 +763,28 @@ Reactive Angular Course Notes:
 
         - See full implementation of Reactive Decoupled Messages Service below:
 
+        ** courses.service.ts
+        export class CoursesService {
+            constructor(private http:HttpClient) {
+
+            }
+
+            loadAllCourses(): Observable<Course[]> {
+                return this.http.get<Course[]>("/api/courses")
+                .pipe(
+                    map(res => res["payload"]),
+                    shareReplay()
+                );
+            }
+
+            saveCourse(course: string, changes: Partial<Course>): Observable<any> {
+                return this.http.put(`/api/courses/${courseId}`, changes)
+                .pipe(
+                    shareReplay()
+                );
+            }
+        }
+
         ** app.component.ts
         @Component({
         selector: 'app-root',
@@ -956,6 +978,215 @@ Reactive Angular Course Notes:
                 <mat-icon class="close" click="onClose()">Close</mat-icon>
             </div>
         </ng-container>
+
+    
+    - Local Error Handling as we using MaterialDialog component that is outside of the root component tree: As the MaterialDialog component (pop up modal to edit a course) is outside of the application root component & app route child components we must implement the error handling service to the MaterialDialog in a different way. The providers declared in the root app component are not accessible by the  MaterialDialog so we must provide the MaterialDialog component with the messagesServices in the providers array (providers: [LoadingService, MessagesService]) & also provide it int he course-dialog.ts constructor (private messagesService:MessagesService). We must then inject the messages component inside the course-dialog.component.html file at the top so it can be used inside of the course-dialog modal when a error occurs when updating a courses information. 
+
+        - Local Error Handling Service Injection in Reactive approach example below:
+
+        ** courses.service.ts
+        export class CoursesService {
+            constructor(private http:HttpClient) {
+
+            }
+
+            loadAllCourses(): Observable<Course[]> {
+                return this.http.get<Course[]>("/api/courses")
+                .pipe(
+                    map(res => res["payload"]),
+                    shareReplay()
+                );
+            }
+
+            saveCourse(course: string, changes: Partial<Course>): Observable<any> {
+                return this.http.put(`/api/courses/${courseId}`, changes)
+                .pipe(
+                    shareReplay()
+                );
+            }
+        }
+
+        **course-dialog.component.ts
+        @Component({
+            selector: 'course-dialog',
+            templateUrl: './course-dialog.component.html',
+            styleUrls: ['./course-dialog.component.css'],
+            providers: [
+                LoadingService,
+                MessagesService
+            ]
+        })
+
+        export class CourseDialogComponent implements AfterViewInit {
+
+            form: FormGroup;
+
+            course:Course;
+
+            constructor(
+                private fb: FormBuilder,
+                private dialogRef: MatDialogRef<CourseDialogComponent>,
+                @Inject(MAT_DIALOG_DATA) course:Course,
+                private coursesService: CoursesService,
+                private loadingService:LoadingService,
+                private MessagesService:MessagesService) {
+
+                this.course = course;
+
+                this.form = fb.group({
+                    description: [course.description, Validators.required],
+                    category: [course.category, Validators.required],
+                    releasedAt: [moment(), Validators.required],
+                    longDescription: [course.longDescription,Validators.required]
+                });
+
+            }
+
+            ngAfterViewInit() {
+
+            }
+
+            save() {
+            const changes = this.form.value;
+            // Apply the changes made to the course through the courseId, changes
+            const saveCourse$ = this.coursesService.saveCourse(this.course.id, changes)
+            .pipe(
+                catchError(err => {
+                    const message = "Could not save course";
+                    console.log(message, err);
+                    this.MessagesService.showErrors(message);
+                    return throwError(err);
+                })
+            )
+            
+            // close the course dialog component modal when the course is saved (course dialog is injected in through the constructor so we have access to it). We pass the val into the subscribe to differentiate it from the below close method.
+            .subscribe(
+                (val) => {
+                    this.dialogRef.close(val); 
+                }
+            );
+
+            close() {
+                this.dialogRef.close();
+            }
+
+        **course-dialog.component.html
+        <h2 mat-dialog-title>{{course.description}}</h2>
+
+            <loading></loading>
+
+            <messages></messages>
+
+
+            <mat-dialog-content [formGroup]="form">
+
+            <mat-form-field>
+
+                <input matInput
+                    placeholder="Course Description"
+                    formControlName="description">
+
+            </mat-form-field>
+
+            <mat-form-field>
+
+                <mat-select placeholder="Select category"
+                            formControlName="category">
+
+                <mat-option value="BEGINNER">
+                    Beginner
+                </mat-option>
+                <mat-option value="INTERMEDIATE">
+                    Intermediate
+                </mat-option>
+                <mat-option value="ADVANCED">
+                    Advanced
+                </mat-option>
+
+                </mat-select>
+
+            </mat-form-field>
+
+            <mat-form-field>
+
+                <input matInput [matDatepicker]="myDatepicker" #searchInput
+                    formControlName="releasedAt">
+
+                <mat-datepicker-toggle matSuffix
+                                    [for]="myDatepicker">
+
+                </mat-datepicker-toggle>
+
+                <mat-datepicker #myDatepicker></mat-datepicker>
+
+            </mat-form-field>
+
+            <mat-form-field>
+
+                    <textarea matInput placeholder="Description"
+                            formControlName="longDescription">
+
+                    </textarea>
+
+            </mat-form-field>
+
+
+            </mat-dialog-content>
+
+            <mat-dialog-actions>
+
+            <button class="mat-raised-button"
+                    (click)="close()">
+                Close
+            </button>
+
+            <button class="mat-raised-button mat-primary" #saveButton (click)="save()">
+                Save
+            </button>
+
+        </mat-dialog-actions>
+
+
+    - Angular State Management - When is it needed & why: The examples above are not saved in any application state and therefore is calling adopting a reactive stateless solution. All of the data comes from the http requests and is processed in reactive way using observables & rxjs. There is times when we would like to implement state management so every time that the data changes or is updated in the backend we don't need to continually make http request to the backend for them changes to be visible on the user interface. This is called having a lot of 'network overhead' (in most cases this is not an issue to have a stateless solution as is actually best practice and in most cases). For network heavy requests we should consider implementing some state management to improve the user experience (careful consideration of tradeoffs should be considered if doing so). This is when we should consider implementing a 'store service'. It will not be a 'stateless' service like the coursesService, it will be 'stateful' service. This service will keep some state in memory and for this example will save the courses in some state using a store. First we create a courses.store.ts file and provide it as Singleton global store service meaning will be will once instance of this service throughout the entire application. The courses.store.ts will will have a courses$ observable (courses$: Observable<Course[]>;) and will also include some data modification logic within the store. We can then inject the store into our constructor in the home.component.ts ready to be used to display courses.
+
+        - Stateful Courses Store Service example below(** Note this was only implemented in the example below and not in the course files):
+
+        ** home.component.ts
+        @Component({
+            selector: 'home',
+            templateUrl: './home.component.html',
+            styleUrls: ['./home.component.css']
+            })
+            
+            export class HomeComponent implements OnInit {
+
+            beginnerCourses$: Observable<Course[]>;
+
+            advancedCourses$: Observable<Course[]>;
+
+            
+            constructor(
+                private coursesStore: CoursesStore) { << the courses store will now handle the course data, loading & messages service so have been removed from the constr
+            }
+            
+
+            ngOnInit() {
+
+                this.reloadCourses();
+            }
+
+            reloadCourses() {
+
+                this.beginnerCourses$ = this.coursesStore.filterByCategory("BEGINNER");
+
+                this.advancedCourses$ = this.coursesStore.filterByCategory("ADVANCED");
+            }      
+
+
+
+
+
+
 
 
 

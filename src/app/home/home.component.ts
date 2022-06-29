@@ -1,3 +1,4 @@
+import { CoursesStore } from './../services/courses.store';
 import { MessagesService } from './../messages/messages.service';
 import { LoadingService } from './../loading/loading.service';
 import {Component, OnInit} from '@angular/core';
@@ -26,9 +27,11 @@ export class HomeComponent implements OnInit {
     private dialog: MatDialog, 
     private coursesService: CoursesService, 
     private loadingService:LoadingService,
-    private messagesService: MessagesService) {
+    private messagesService: MessagesService,
+    private coursesStore: CoursesStore) {
 
   }
+  
 
   ngOnInit() {
 
@@ -82,7 +85,9 @@ export class HomeComponent implements OnInit {
 
 //   }
 
-// }
+
+
+}
 
 
 

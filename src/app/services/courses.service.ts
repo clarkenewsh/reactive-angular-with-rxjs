@@ -1,5 +1,5 @@
-import { shareReplay } from 'rxjs/operators';
-import { Observable, map } from 'rxjs';
+import { shareReplay, map } from 'rxjs/operators';
+import { Observable } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import {Injectable} from '@angular/core';
 import { Course } from '../model/course';
